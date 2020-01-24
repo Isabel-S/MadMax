@@ -31,27 +31,19 @@ competition Competition;
 #pragma region globalVariables
 //---------------Global Variables-----------------
 double armAngle = 0; //deprecated, used in old versions
-int intakeState = 0;
-int manual = 0; //deprecated, used in old versions
+bool autoIntake = false;
+bool manual = false; //deprecated, used in old versions
 int countr = 0;
 int y = 0; //deprecatd, used in old versions
 int rampState = 0;
 //------------------------------------------------
 
 //---------------Global Functions-----------------
-void rampMode() {
-  if(rampState == 0) {
-    rampState = 1;
-  } else if(rampState == 1) {
-    rampState = 0;
-  }
+void controlMode() {
+  manual = !manual;
 }
 void intakeMode() {
-  if(intakeState == 0) {
-    intakeState = 1;
-  } else if(intakeState == 1) {
-    intakeState = 0;
-  }
+  autoIntake = !autoIntake;
 }
 //------------------------------------------------
 #pragma endregion
@@ -72,9 +64,9 @@ double todeg(double cm) {
   return degreesToRotate;
 }
 //prints the position of a specified motor
-void printAngle(){
+void printAngle(vex::motor test){
   Brain.Screen.clearScreen();
-  Brain.Screen.printAt(100,150,"Angle: %0.2lf",ramp.rotation(vex::rotationUnits::deg));
+  Brain.Screen.printAt(100,150,"Angle: %0.2lf",test.rotation(vex::rotationUnits::deg));
 }
 //as the name suggests; used in experimental features(acceleration)
 double tocm(double deg) {
@@ -137,81 +129,34 @@ void tank() {
   RightBack.spin(vex::directionType::fwd, controller1.Axis2.position()*0.75, vex::percentUnits::pct);
 }
 void arm() {
-  /*
-  These commands set up the initial values for the robot.
-  The "setBrake(brakeType::hold)" commands for the ramp and armLift
-  will make it so that executing a .stop() function will hold the motors in place(using power).
-  The ramp and armLift are designated with 45% and 100% power respectively
-  /**/  
-  ramp.setBrake(brakeType::hold);
-  armLift.setBrake(brakeType::hold);
-  ramp.setVelocity(45,vex::percentUnits::pct);
-  armLift.setVelocity(100,vex::percentUnits::pct);
+ ramp.setBrake(brakeType::hold);
+ armLift.setBrake(brakeType::hold);
+ double rampVelocity = 30;
+ double armLiftVelocity = 50;
 
-  //------------manual mode---------------
-  /*
-  This is the manual mode. Modes are changed by the callback function rampMode.
-   The robot initially starts in automatic mode but the button Y on the controller switches between the two modes.
-  As the name suggests, in this mode all of the mechanisms are controlled manually.
-  /**/
-  if(rampState == 1) {
-    controller1.Screen.clearScreen(); 
-    controller1.Screen.print("Manual Mode");
-    if(controller1.ButtonUp.pressing()) {
-      ramp.spin(vex::directionType::fwd);
-    } else if(controller1.ButtonDown.pressing()) {
-      ramp.spin(vex::directionType::rev);
-    } else {
-      /*
-      This bit of code is the only "automatic" part in manual mode. It is a remnant from the previous version
-      of the code when the modes were combined(outlined previously). This is just here in case
-      the driver forgets to return to automatic mode whenever he lifts the arms as the ramp is usually
-      in the way. However, there is a flaw in the driver must wait about 1-2 seconds for the ramp to extend
-      as this was the only option for the previous iteration's combined set of functions. The problem 
-      disappears entirely in automatic mode.
-      /**/
-      if(armLift.rotation(vex::rotationUnits::deg) > 50) {
-        countr = 1;
-        /*
-        "countr" sets a boundary at 50o of rotation. Because an infinite loop is being run, countr
-         marks when the arm is raised and tells the ramp to incline a bit to move out of the way. 
-         /**/
-        ramp.rotateTo(350,vex::rotationUnits::deg,false);
-      } else if(armLift.rotation(vex::rotationUnits::deg) < 50 && countr == 1) {
-        /*
-        Here the logic detects when the arm is lowered(<50o). If this is true, then the robot
-        knows that the arm is lowered and that the ramp can be returned to its original position
-        without getting in the way of the arm and vice versa. Countr is reset to 0.
-        Countr redirects the ramp.stop() command, allowing ramp.spin() to allow manual control and
-        preventing the code immediately following this comment from running when the arm isn't raised
-        initially–thus lowering the ramp regardless of whether the user wants to or not. However,
-        this is also the reason why the robot must wait for ramp.rotateTo(10,vex::rotationUnits::deg); 
-        to finish, as if the logic simply went through, then countr would be 0 and also ramp.stop() would 
-        prevent the command from running.
-        /**/
-        ramp.rotateTo(10,vex::rotationUnits::deg);
-        countr = 0;
-      } else {  
-        ramp.stop();
-      }
-      ramp.stop(); //double check: may be unnecessary
-    }
-      if(controller1.ButtonR1.pressing()) {
-      armLift.spin(vex::directionType::fwd);
-    } else if(controller1.ButtonR2.pressing()) {
-      armLift.spin(vex::directionType::rev);
-    } else {
-      armLift.stop();
-    }
-  //------------------Automatic Mode----------------
-  /*
-  This is the automatic mode. This is the default mode when the code is run. In this mode,
-  the motors(except for the drivetrains) are set to rotate a specific amount, specifically:
-  ramp ==> perpendicular or declined position
-  armLift ==> rest, height of lowest tower, or height of middle tower
-  /**/
+ if(manual) {
+   controller1.Screen.clearScreen();
+   controller1.Screen.print("Manual Mode \n\n\n");
+   
+   if(controller1.ButtonUp.pressing()) {
+     ramp.spin(vex::directionType::fwd,rampVelocity,vex::percentUnits::pct);
+   } else if(controller1.ButtonDown.pressing()) {
+     ramp.spin(vex::directionType::rev,rampVelocity,vex::percentUnits::pct);
+   } else {
+     ramp.stop();
+   }
+
+    if(controller1.ButtonR1.pressing()) {
+    armLift.spin(vex::directionType::fwd,armLiftVelocity,vex::percentUnits::pct);
+  } else if(controller1.ButtonR2.pressing()) {
+    armLift.spin(vex::directionType::rev,armLiftVelocity,vex::percentUnits::pct);
   } else {
-    //this section controls the movement of the ramp
+    armLift.stop();
+   }
+
+ } else { //automatic
+    ramp.setVelocity(rampVelocity,vex::percentUnits::pct);
+    armLift.setVelocity(armLiftVelocity,vex::percentUnits::pct);
     controller1.Screen.clearScreen();
     controller1.Screen.print("Automatic Mode");
     if(controller1.ButtonUp.pressing()) {
@@ -240,13 +185,7 @@ void arm() {
       armLift.rotateTo(10,vex::rotationUnits::deg,false); //rest
     }
   }
-  printAngle();
-  //Functions below run regardless of the mode
-  if(controller1.ButtonLeft.pressing()) {
-    intakeState = 0;
-  } else if(controller1.ButtonRight.pressing()) {
-    intakeState = 1;
-  }
+  printAngle(ramp);
 
   if(controller1.ButtonL1.pressing()) { //makes the rollers intake blocks
     armLeft.setVelocity(100,vex::percentUnits::pct);
@@ -259,15 +198,15 @@ void arm() {
     armLeft.spin(vex::directionType::rev);
     armRight.spin(vex::directionType::rev);
   } else {
-    if(intakeState == 0) { //intakeState changed by "intakeMode" seen at the bottom of the code
-      armLeft.stop();
-      armRight.stop();
-    } else {
+    if(autoIntake) { //intakeState changed by "intakeMode" seen at the bottom of the code
       armLeft.spin(vex::directionType::fwd,100,vex::velocityUnits::pct);
       armRight.spin(vex::directionType::fwd,100,vex::velocityUnits::pct);
+    } else {
+      armLeft.stop();
+      armRight.stop();
     }
   }
-}
+} 
 #pragma endregion
 
 #pragma region auton
@@ -918,7 +857,7 @@ void pre_auton(void) {
 }
 
 void usercontrol() {
-  controller1.ButtonY.pressed(rampMode);
+  controller1.ButtonY.pressed(controlMode);
   controller1.ButtonRight.pressed(intakeMode);
   while(true) {
     arm();
